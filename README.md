@@ -1,0 +1,1 @@
+Optymalizator kodu źródłowego Pythona napisany w Scali - rozwiązanie zadania 3 kursu Teorii Kompilacji na AGH.
