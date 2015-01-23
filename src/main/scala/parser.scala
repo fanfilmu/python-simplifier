@@ -123,6 +123,7 @@ class Parser extends JavaTokenParsers {
   def primary: Parser[Node] = (
     lvalue
     | const
+    | tuple
     | "("~>expression<~")"
     | "["~>expr_list_comma<~"]" ^^ {
       case NodeList(x) => ElemList(x)
@@ -170,6 +171,7 @@ class Parser extends JavaTokenParsers {
     case id ~ None ~ suite => ClassDef(id, NodeList(List()), suite)
   }
 
+  def tuple: Parser[Tuple] = "(" ~> repsep(primary, ",") <~ ")" ^^ Tuple
 
   def id_list: Parser[List[Variable]] = repsep(id, ",") ^^ {
     case id_list => id_list.map(Variable)
