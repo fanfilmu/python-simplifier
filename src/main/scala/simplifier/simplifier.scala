@@ -16,14 +16,15 @@ object Simplifier {
       case n@IfElseInstr(_,_,_) => simplify_if_else_instr(n)
       case n@IfElifInstr(_,_,_) => simplify_if_elif_instr(n)
       case n@IfElifElseInstr(_,_,_,_) => simplify_if_elif_else_instr(n)
+      case n@IfElseExpr(_,_,_) => simplify_if_else_expr(n)
+      case n@Assignment(_,_) => simplify_assignment(n)
       case _ => node
     }
   }
 
   def simplify_node_list(listNode: NodeList) : Node = (
     listNode.list match {
-      case List() => listNode
-      case List(NodeList(_)) => simplify(listNode.list.head)
+      case List(n@NodeList(_)) => simplify(n)
       case _ => new NodeList(listNode.list.map(x => simplify(x)).filter(_ != null))
     }
   )
@@ -40,12 +41,12 @@ object Simplifier {
       case (FalseConst(),"not") => TrueConst()
       case (TrueConst(),"not") => FalseConst()
       case (u@Unary(_,_),u.op) => u.expr
-      case (b@BinExpr(_,_,_),"not") if b.op == "==" => BinExpr("!=",b.left,b.right)
-      case (b@BinExpr(_,_,_),"not") if b.op == "!=" => BinExpr("==",b.left,b.right)
-      case (b@BinExpr(_,_,_),"not") if b.op == "<=" => BinExpr(">",b.left,b.right)
-      case (b@BinExpr(_,_,_),"not") if b.op == ">=" => BinExpr("<",b.left,b.right)
-      case (b@BinExpr(_,_,_),"not") if b.op == "<" => BinExpr(">=",b.left,b.right) 
-      case (b@BinExpr(_,_,_),"not") if b.op == ">" => BinExpr("<=",b.left,b.right) 
+      case (b@BinExpr(_,_,_),"not") if b.op == "==" => simplify(BinExpr("!=",b.left,b.right))
+      case (b@BinExpr(_,_,_),"not") if b.op == "!=" => simplify(BinExpr("==",b.left,b.right))
+      case (b@BinExpr(_,_,_),"not") if b.op == "<=" => simplify(BinExpr(">",b.left,b.right))
+      case (b@BinExpr(_,_,_),"not") if b.op == ">=" => simplify(BinExpr("<",b.left,b.right))
+      case (b@BinExpr(_,_,_),"not") if b.op == "<" => simplify(BinExpr(">=",b.left,b.right))
+      case (b@BinExpr(_,_,_),"not") if b.op == ">" => simplify(BinExpr("<=",b.left,b.right))
       case _ => Unary(unary.op,simplify(unary.expr))
     }
   )
@@ -79,6 +80,8 @@ object Simplifier {
       case (v@Variable(_),TrueConst(),"or") => TrueConst()
       case (v@Variable(_),TrueConst(),"and") => v
       case (u@Unary("-",_),v@_,"+") => simplify(BinExpr("-",v,u.expr))
+      case (a@Tuple(_),b@Tuple(_),"+") => Tuple(a.list ++ b.list)
+      case (a@ElemList(_),b@ElemList(_),"+") => ElemList(a.list ++ b.list)
       case (v@_,u@_,o@_) => BinExpr(o, v, u)
     }
   )
@@ -114,6 +117,21 @@ object Simplifier {
       case FalseConst() if node.elifs.size == 1 => simplify(IfElseInstr(node.elifs.head.cond, node.elifs.head.left, node.right))
       case FalseConst() if node.elifs.size > 1 => simplify(IfElifElseInstr(node.elifs.head.cond, node.elifs.head.left, node.elifs.slice(1, node.elifs.size), node.right))
       case c@_ => IfElifElseInstr(c, simplify(node.left), node.elifs, simplify(node.right))
+    }
+  )
+
+  def simplify_if_else_expr(node: IfElseExpr) : Node = (
+    simplify(node.cond) match {
+      case TrueConst() => simplify(node.left)
+      case FalseConst() => simplify(node.right)
+      case c@_ => IfElseExpr(c, simplify(node.left), simplify(node.right))
+    }
+  )
+
+  def simplify_assignment(node: Assignment) : Node = (
+    (simplify(node.left),simplify(node.right)) match {
+      case (a@_,b@_) if a == b => null
+      case (a@_,b@_) => Assignment(a,b)
     }
   )
 }
