@@ -121,14 +121,14 @@ case class IfElifInstr(cond: Node, left: Node, elifs: List[ElifInstr]) extends N
   }
 }
 
-case class IfElifElseInstr(cond: Node, primary: Node, elifs: List[ElifInstr], default: Node) extends Node {
+case class IfElifElseInstr(cond: Node, left: Node, elifs: List[ElifInstr], right: Node) extends Node {
   override def toStr = {
     var str = "if " + cond.toStr + ":\n"
-    str += primary.toStr.replaceAll("(?m)^", indent)
+    str += left.toStr.replaceAll("(?m)^", indent)
     for (elif <- elifs)
       str += elif.toStr.replaceAll("(?m)^", indent)
     str += "\nelse:\n"
-    str += default.toStr.replaceAll("(?m)^", indent)
+    str += right.toStr.replaceAll("(?m)^", indent)
     str
   }
 }

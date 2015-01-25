@@ -12,12 +12,20 @@ object Simplifier {
       case n@WhileInstr(_,_) => simplify_while_instr(n)
       case n@Unary(_,_) => simplify_unary_exp(n)
       case n@BinExpr(_,_,_) => simplify_bin_expr(n)
+      case n@IfInstr(_,_) => simplify_if_instr(n)
+      case n@IfElseInstr(_,_,_) => simplify_if_else_instr(n)
+      case n@IfElifInstr(_,_,_) => simplify_if_elif_instr(n)
+      case n@IfElifElseInstr(_,_,_,_) => simplify_if_elif_else_instr(n)
       case _ => node
     }
   }
 
   def simplify_node_list(listNode: NodeList) : Node = (
-    new NodeList(listNode.list.map(x => simplify(x)).filter(_ != null))
+    listNode.list match {
+      case List() => listNode
+      case List(NodeList(_)) => simplify(listNode.list.head)
+      case _ => new NodeList(listNode.list.map(x => simplify(x)).filter(_ != null))
+    }
   )
 
   def simplify_while_instr(loop: WhileInstr) : Node = (
@@ -72,6 +80,40 @@ object Simplifier {
       case (v@Variable(_),TrueConst(),"and") => v
       case (u@Unary("-",_),v@_,"+") => simplify(BinExpr("-",v,u.expr))
       case (v@_,u@_,o@_) => BinExpr(o, v, u)
+    }
+  )
+
+  def simplify_if_instr(node: IfInstr) : Node = (
+    simplify(node.cond) match {
+      case TrueConst() => simplify(node.left)
+      case FalseConst() => null
+      case c@_ => IfInstr(c, simplify(node.left))
+    }
+  )
+
+  def simplify_if_else_instr(node: IfElseInstr) : Node = (
+    simplify(node.cond) match {
+      case TrueConst() => simplify(node.left)
+      case FalseConst() => simplify(node.right)
+      case c@_ => IfElseInstr(c, simplify(node.left), simplify(node.right))
+    }
+  )
+
+  def simplify_if_elif_instr(node: IfElifInstr) : Node = (
+    simplify(node.cond) match {
+      case TrueConst() => simplify(node.left)
+      case FalseConst() if node.elifs.size == 1 => simplify(IfInstr(node.elifs.head.cond, node.elifs.head.left))
+      case FalseConst() if node.elifs.size > 1 => simplify(IfElifInstr(node.elifs.head.cond, node.elifs.head.left, node.elifs.slice(1, node.elifs.size)))
+      case c@_ => IfElifInstr(c, simplify(node.left), node.elifs)
+    }
+  )
+
+  def simplify_if_elif_else_instr(node: IfElifElseInstr) : Node = (
+    simplify(node.cond) match {
+      case TrueConst() => simplify(node.left)
+      case FalseConst() if node.elifs.size == 1 => simplify(IfElseInstr(node.elifs.head.cond, node.elifs.head.left, node.right))
+      case FalseConst() if node.elifs.size > 1 => simplify(IfElifElseInstr(node.elifs.head.cond, node.elifs.head.left, node.elifs.slice(1, node.elifs.size), node.right))
+      case c@_ => IfElifElseInstr(c, simplify(node.left), node.elifs, simplify(node.right))
     }
   )
 }
