@@ -11,6 +11,7 @@ object Simplifier {
       case n@NodeList(_) => simplify_node_list(n)
       case n@WhileInstr(_,_) => simplify_while_instr(n)
       case n@Unary(_,_) => simplify_unary_exp(n)
+      case n@BinExpr(_,_,_) => simplify_bin_expr(n)
       case _ => node
     }
   }
@@ -27,11 +28,50 @@ object Simplifier {
   )
 
   def simplify_unary_exp(unary: Unary) : Node = (
-    simplify(unary.expr) match {
-      case FalseConst() if unary.op == "not" => TrueConst()
-      case TrueConst() if unary.op == "not" => FalseConst()
-      case u@Unary(_,_) if u.op == unary.op => u.expr
+    (simplify(unary.expr),unary.op) match {
+      case (FalseConst(),"not") => TrueConst()
+      case (TrueConst(),"not") => FalseConst()
+      case (u@Unary(_,_),u.op) => u.expr
+      case (b@BinExpr(_,_,_),"not") if b.op == "==" => BinExpr("!=",b.left,b.right)
+      case (b@BinExpr(_,_,_),"not") if b.op == "!=" => BinExpr("==",b.left,b.right)
+      case (b@BinExpr(_,_,_),"not") if b.op == "<=" => BinExpr(">",b.left,b.right)
+      case (b@BinExpr(_,_,_),"not") if b.op == ">=" => BinExpr("<",b.left,b.right)
+      case (b@BinExpr(_,_,_),"not") if b.op == "<" => BinExpr(">=",b.left,b.right) 
+      case (b@BinExpr(_,_,_),"not") if b.op == ">" => BinExpr("<=",b.left,b.right) 
       case _ => Unary(unary.op,simplify(unary.expr))
+    }
+  )
+
+  def simplify_bin_expr(binary: BinExpr) : Node = (
+    (simplify(binary.left),simplify(binary.right),binary.op) match {
+      case (n@IntNum(_),m@IntNum(_),"/") if m.value != 0 => FloatNum(n.value/m.value)
+      case (n@IntNum(_),m@IntNum(_),"+") => IntNum(n.value+m.value)
+      case (n@IntNum(_),m@IntNum(_),"-") if n.value < m.value => Unary("-",IntNum(-(n.value-m.value)))
+      case (n@IntNum(_),m@IntNum(_),"-") => IntNum(n.value-m.value)
+      case (n@IntNum(_),m@IntNum(_),"*") => IntNum(n.value*m.value)
+      case (n@FloatNum(_),m@FloatNum(_),"/") if m.value != 0 => FloatNum(n.value/m.value)
+      case (n@FloatNum(_),m@FloatNum(_),"+") => FloatNum(n.value+m.value)
+      case (n@FloatNum(_),m@FloatNum(_),"-") if n.value < m.value => Unary("-",FloatNum(-(n.value-m.value)))
+      case (n@FloatNum(_),m@FloatNum(_),"-") => FloatNum(n.value-m.value)
+      case (n@FloatNum(_),m@FloatNum(_),"*") => FloatNum(n.value*m.value)
+      case (v@Variable(_),x@Variable(_),"=="|">="|"<=") if v.name == x.name => TrueConst()
+      case (v@Variable(_),x@Variable(_),"!="|"<"|">") if v.name == x.name => FalseConst()
+      case (v@Variable(_),x@Variable(_),"-") if v.name == x.name => IntNum(0)
+      case (v@Variable(_),n@IntNum(_),"+" | "-") if n.value == 0 => v
+      case (n@IntNum(_),v@Variable(_),"+" | "-") if n.value == 0 => v
+      case (v@Variable(_),n@IntNum(_),"*") if n.value == 1 => v
+      case (n@IntNum(_),v@Variable(_),"*") if n.value == 1 => v
+      case (v@Variable(_),n@IntNum(_),"*") if n.value == 0 => IntNum(0)
+      case (n@IntNum(_),v@Variable(_),"*") if n.value == 0 => IntNum(0)
+      case (v@_,x@_,"/") if v == x => IntNum(1)
+      case (v@Variable(_),x@Variable(_),"or") if v.name == x.name => x
+      case (v@Variable(_),x@Variable(_),"and") if v.name == x.name => x
+      case (v@Variable(_),FalseConst(),"or") => v
+      case (v@Variable(_),FalseConst(),"and") => FalseConst()
+      case (v@Variable(_),TrueConst(),"or") => TrueConst()
+      case (v@Variable(_),TrueConst(),"and") => v
+      case (u@Unary("-",_),v@_,"+") => simplify(BinExpr("-",v,u.expr))
+      case (v@_,u@_,o@_) => BinExpr(o, v, u)
     }
   )
 }
